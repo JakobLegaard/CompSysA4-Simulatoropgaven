@@ -4,6 +4,7 @@
 #include "simulate.h"
 #include "memory.h"
 #include "disassemble.h"
+#include "branch_predictor.h"
 
 static int32_t registers[32];
 static uint32_t pc;
@@ -239,7 +240,8 @@ static int handle_ecall(void) {
     
     return 0;
 }
-struct Stat simulate(struct memory *mem, int start_addr, FILE *log_file, struct symbols* symbols) {
+struct Stat simulate(struct memory *mem, int start_addr, FILE *log_file, 
+                     struct symbols* symbols, branch_predictor_t *predictor) {
     struct Stat stats;
     stats.insns = 0;
     
@@ -330,8 +332,12 @@ struct Stat simulate(struct memory *mem, int start_addr, FILE *log_file, struct 
                     (get_bits(instr, 25, 30) << 5) |
                     (get_bits(instr, 8, 11) << 1),
                     13
-                );
-               branch_taken = execute_branch(rs1, rs2, funct3, imm, current_pc);
+                );  
+                uint32_t target_addr = (uint32_t)((int32_t)current_pc + imm);
+                branch_taken = execute_branch(rs1, rs2, funct3, imm, current_pc);
+                if (predictor) {
+                    predictor_update(predictor, current_pc, target_addr, branch_taken);
+                }                
                 if (branch_taken) {
                     jump_target = pc;
                 }
@@ -389,6 +395,11 @@ struct Stat simulate(struct memory *mem, int start_addr, FILE *log_file, struct 
                         if (log_file) {
                             fprintf(log_file, "\n");
                         }
+                        
+                        if (predictor) {
+                            predictor_print_stats(predictor);
+                        }
+                        
                         return stats;
                     }
                 }
@@ -396,6 +407,10 @@ struct Stat simulate(struct memory *mem, int start_addr, FILE *log_file, struct 
             }
             default:
                 fprintf(stderr, "Unknown instruction: 0x%08x at PC=0x%08x\n", instr, current_pc);
+                if (predictor) {
+                    predictor_print_stats(predictor);
+                }
+                
                 return stats;
         }
         if (log_file) {
@@ -413,9 +428,15 @@ struct Stat simulate(struct memory *mem, int start_addr, FILE *log_file, struct 
             fprintf(log_file, "\n");
         }
         
-        if (stats.insns > 10000000) {
+        if (stats.insns > 100000000) {
             fprintf(stderr, "Instruction limits reached\n");
-            return stats;
+            break;
         }
     }
+  
+    if (predictor) {
+      predictor_print_stats(predictor);
+    }
+  
+  return stats;
 }

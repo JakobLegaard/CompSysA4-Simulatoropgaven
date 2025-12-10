@@ -4,6 +4,7 @@
 #include "memory.h"
 #include "read_elf.h"
 #include <stdio.h>
+#include "branch_predictor.h"
 
 // Simuler RISC-V program i givet lager og fra given start adresse
 struct Stat { long int insns; };
@@ -11,6 +12,6 @@ struct Stat { long int insns; };
 // NOTE: Use of symbols provide for nicer disassembly, but is not required for A4.
 // Feel free to remove this parameter or pass in a NULL pointer and ignore it.
 
-struct Stat simulate(struct memory *mem, int start_addr, FILE *log_file, struct symbols* symbols);
-
+struct Stat simulate(struct memory *mem, int start_addr, FILE *log_file, 
+                     struct symbols* symbols, branch_predictor_t *predictor);
 #endif
